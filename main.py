@@ -2,6 +2,7 @@ import os
 import time
 import ollama
 from stock_helpers import build_stock_price_reply
+from transport_helpers import build_thsr_reply
 from web_search_agent import WebSearchAgent
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
@@ -11,6 +12,10 @@ search_agent = WebSearchAgent(max_results=2, timeout=4)
 
 def voice_assistant_pipeline(user_voice_input: str):
     """語音助理的核心對話管線"""
+
+    thsr_reply = build_thsr_reply(user_voice_input)
+    if thsr_reply:
+        return thsr_reply
     
     # 1. 關鍵字簡單判斷（或者你也可以讓小模型自己決定要不要聯網）
     need_web = any(k in user_voice_input for k in ["搜尋", "今天", "天氣", "最新", "現在", "新聞", "股票", "股價", "即時"])
@@ -59,7 +64,7 @@ def voice_assistant_pipeline(user_voice_input: str):
 # --- 測試模擬 ---
 if __name__ == "__main__":
     # 模擬語音轉文字 (STT) 後的輸入
-    test_question = "幫我查現在板橋到台中的高鐵最近班次？"
+    test_question = "幫我查今天台中到南港的高鐵？"
     
     start_time = time.time()
     ai_reply = voice_assistant_pipeline(test_question)
