@@ -1,9 +1,9 @@
 import json
-import re
 import time
 from pathlib import Path
 
 from ddgs import DDGS
+from stock_helpers import build_stock_search_queries, extract_stock_price_subject, is_quote_like_result
 
 class WebSearchAgent:
     def __init__(self, max_results=3, timeout=5, region="tw-tpe", cache_ttl=300):
@@ -59,46 +59,11 @@ class WebSearchAgent:
         }
         self._save_cache(cache)
 
-    def _build_queries(self, query: str) -> list[str]:
-        """針對常見即時查詢建立較穩定的候選搜尋詞。"""
-        stock_price_subject = self._extract_stock_price_subject(query)
-        if stock_price_subject:
-            return [
-                (
-                    f"{stock_price_subject} 股價 即時 "
-                    "site:tw.stock.yahoo.com OR site:histock.tw OR site:goodinfo.tw"
-                ),
-                f"{stock_price_subject} 即時股價 site:tw.stock.yahoo.com OR site:histock.tw",
-                f"{stock_price_subject} 股價 site:tw.stock.yahoo.com OR site:histock.tw OR site:goodinfo.tw",
-            ]
-
-        stock_keywords = ("股市", "台股", "加權指數", "大盤", "股票")
-        if any(keyword in query for keyword in stock_keywords):
-            return ["今天 台股 加權指數 即時 走勢 site:tw.stock.yahoo.com OR site:histock.tw"]
-        return [query]
-
-    def _extract_stock_price_subject(self, query: str) -> str:
-        if "股價" not in query:
-            return ""
-
-        cleaned_query = re.sub(r"[？?，,。.!！]", " ", query)
-        cleaned_query = re.sub(
-            r"^(今天|現在|請問|幫我|想知道|查一下|查詢|搜尋|請幫我|麻煩幫我)",
-            "",
-            cleaned_query,
-        )
-        cleaned_query = re.sub(r"(今天|現在)?(的)?股價.*$", "", cleaned_query).strip()
-        return cleaned_query
-
-    def _is_quote_like_result(self, text: str) -> bool:
-        quote_keywords = ("成交", "開盤", "昨收", "漲跌幅", "最高", "最低", "股價")
-        return any(keyword in text for keyword in quote_keywords) and bool(re.search(r"\d[\d,\.]*", text))
-
     def search(self, query: str) -> str:
         """執行免 API 搜尋並格式化文本"""
         search_chunks = []
         cache_key = query.strip()
-        search_queries = self._build_queries(query)
+        search_queries = build_stock_search_queries(query) or [query]
         cached_result = self._get_cached_result(cache_key)
         if cached_result:
             print(" [WebSearch] 使用快取結果")
@@ -121,12 +86,12 @@ class WebSearchAgent:
                         continue
 
                     filtered_results = []
-                    stock_price_subject = self._extract_stock_price_subject(query)
+                    stock_price_subject = extract_stock_price_subject(query)
                     for result in results:
                         title = result.get("title", "").strip()
                         body = result.get("body", "").strip()
                         text = f"{title} {body}"
-                        if stock_price_subject and not self._is_quote_like_result(text):
+                        if stock_price_subject and not is_quote_like_result(text):
                             continue
                         filtered_results.append(result)
 
